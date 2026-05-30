@@ -11,8 +11,10 @@ import { initUI, updateFPS }     from './ui.js';
 
 // ── SCENE ─────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a1a);
-scene.fog        = new THREE.FogExp2(0x1a1a1a, 0.018);
+// Warna background sore hari yang lebih cerah (Golden Hour / Peach)
+scene.background = new THREE.Color(0xdca57d);
+// Fog tipis untuk menyatukan warna jalan dengan langit tanpa terlihat berkabut
+scene.fog        = new THREE.FogExp2(0xdca57d, 0.005);
 
 // ── RENDERER ──────────────────────────────────────────────────
 const container = document.getElementById('canvas-container');
@@ -64,14 +66,15 @@ function resetView() {
   resetTarget.copy(CAM_DEFAULT_TARGET);
 }
 
-// ── LIGHTING ──────────────────────────────────────────────────
-// Ambient — pencahayaan dasar
-const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+// ── LIGHTING (GOLDEN HOUR / SORE CERAH) ───────────────────────
+// Ambient — lebih cerah agar tidak terlalu gelap
+const ambient = new THREE.AmbientLight(0xffeedd, 0.55);
 scene.add(ambient);
 
-// Directional — matahari
-const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
-sun.position.set(15, 30, 10);
+// Directional — matahari senja yang cerah (Golden Yellow)
+const sun = new THREE.DirectionalLight(0xffaa55, 1.8);
+// Posisi dari kiri-depan agar bayangan jatuh dengan jelas ke kanan-belakang
+sun.position.set(-25, 22, 15); 
 sun.castShadow = true;
 sun.shadow.mapSize.width  = 2048;
 sun.shadow.mapSize.height = 2048;
@@ -84,13 +87,13 @@ sun.shadow.camera.bottom  = -35;
 sun.shadow.bias           = -0.001;
 scene.add(sun);
 
-// Hemisphere — sky/ground bounce
-const hemi = new THREE.HemisphereLight(0x4488cc, 0x223322, 0.35);
+// Hemisphere — pantulan langit cerah & tanah yang lebih terang
+const hemi = new THREE.HemisphereLight(0x88bbff, 0x554433, 0.6);
 scene.add(hemi);
 
-// Fill light dari kiri
-const fill = new THREE.DirectionalLight(0xaabbff, 0.25);
-fill.position.set(-15, 10, -5);
+// Fill light — cahaya biru lembut dari sisi bayangan agar detail tetap terlihat
+const fill = new THREE.DirectionalLight(0x8899cc, 0.4);
+fill.position.set(20, 15, -15);
 scene.add(fill);
 
 // ── BUILD WORLD ───────────────────────────────────────────────
