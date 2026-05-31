@@ -181,8 +181,7 @@ export const state = {
     mainToMain:  0,
     mainToMall:  0,
     mainToRoadA: 0,
-    mallExit0:   0,   // lajur fisik kiri keluar mall
-    mallExit1:   0,   // lajur fisik kanan keluar mall
+    mallExit:    0,   // satu spawner untuk kedua lajur mall (round-robin)
     roadBToMain: 0,
   },
 
@@ -191,8 +190,7 @@ export const state = {
     mainToMain:  0,
     mainToMall:  0,
     mainToRoadA: 0,
-    mallExit0:   0,
-    mallExit1:   0,
+    mallExit:    0,   // satu spawner untuk kedua lajur mall (round-robin)
     roadBToMain: 0,
   },
 
@@ -238,13 +236,10 @@ export function resetSimulation(scene, seed) {
     state.accumulators[key] = 0;
     state.nextArrival[key]  = exponentialRV(rng, state.params[key] / 60) * rng();
   });
-  // Dua spawner lajur mall exit — masing-masing rate = totalMallRate/2
-  const laneRate = (state.params.mallToMain + state.params.mallToRoadA) / 2;
-  const lrSec    = laneRate / 60;
-  state.accumulators.mallExit0 = 0;
-  state.accumulators.mallExit1 = 0;
-  state.nextArrival.mallExit0  = lrSec > 0 ? exponentialRV(rng, lrSec) * rng() : Infinity;
-  state.nextArrival.mallExit1  = lrSec > 0 ? exponentialRV(rng, lrSec) * rng() : Infinity;
+  // Satu spawner untuk kedua lajur mall — round-robin memastikan kepadatan sama
+  const totalMallSec = (state.params.mallToMain + state.params.mallToRoadA) / 60;
+  state.accumulators.mallExit = 0;
+  state.nextArrival.mallExit  = totalMallSec > 0 ? exponentialRV(rng, totalMallSec) * rng() : Infinity;
 }
 
 // ── MAIN UPDATE LOOP ───────────────────────────────────────────
@@ -302,27 +297,25 @@ function spawnVehicles(delta) {
     }
   });
 
-  // Dua spawner terpisah per lajur fisik keluar mall — rate masing-masing = totalRate/2
+  // Satu spawner untuk kedua lajur mall — round-robin: tiap spawn bergantian lajur 0 dan 1
+  // sehingga jumlah kendaraan di kedua lajur SELALU simetris (selisih max 1)
   const totalMallRate = state.params.mallToMain + state.params.mallToRoadA;
   if (totalMallRate > 0) {
-    const laneRate = totalMallRate / 2;
-    const lrSec    = laneRate / 60;
-
-    [0, 1].forEach(laneIdx => {
-      const key = `mallExit${laneIdx}`;
-      state.accumulators[key] += delta;
-      while (state.accumulators[key] >= state.nextArrival[key]) {
-        state.accumulators[key] -= state.nextArrival[key];
-        state.nextArrival[key] = exponentialRV(rng, lrSec);
-        if (state.vehicles.length < 200) {
-          // Setiap kendaraan dari KEDUA lajur memilih tujuan secara independen
-          // berdasarkan rasio slider, sehingga kemacetan tersebar rata
-          const goMain = rng() < state.params.mallToMain / totalMallRate;
-          const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
-          spawnVehicle(dest, laneIdx);
-        }
+    const totalSec = totalMallRate / 60;
+    state.accumulators.mallExit += delta;
+    while (state.accumulators.mallExit >= state.nextArrival.mallExit) {
+      state.accumulators.mallExit -= state.nextArrival.mallExit;
+      state.nextArrival.mallExit   = exponentialRV(rng, totalSec);
+      if (state.vehicles.length < 200) {
+        // Ambil lajur saat ini lalu segera toggle ke lajur berikutnya (round-robin)
+        const laneIdx = mallExitLane;
+        mallExitLane  = 1 - mallExitLane;
+        // Tentukan tujuan berdasarkan rasio slider
+        const goMain = rng() < state.params.mallToMain / totalMallRate;
+        const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
+        spawnVehicle(dest, laneIdx);
       }
-    });
+    }
   }
 }
 

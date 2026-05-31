@@ -71,9 +71,8 @@ function bindRouteSliders() {
       const val = parseInt(slider.value);
       valEl.textContent = val;
       state.params[key] = val;
-      // Reset mall exit accumulator agar rate baru langsung berlaku
-      state.accumulators.mallExit0 = 0;
-      state.accumulators.mallExit1 = 0;
+      // Reset spawner tunggal mall exit agar rate baru langsung berlaku
+      state.accumulators.mallExit = 0;
       updateSliderFill(slider);
     });
   });
