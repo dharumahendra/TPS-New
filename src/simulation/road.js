@@ -98,8 +98,9 @@ export function buildRoad(scene) {
 
   // Garis tepi jalan utama (atas dan bawah)
   makeSolidLine(scene, -3,  -34, 32, 0.016, 0.15);  // tepi atas
-  makeSolidLine(scene, +3,  -34, -13, 0.016, 0.15); // tepi bawah kiri
-  // (tepi bawah kanan terputus di persimpangan akses mall)
+  makeSolidLine(scene, +3,  -34, -11, 0.016, 0.15); // tepi bawah kiri (sebelum Jalan B)
+  makeSolidLine(scene, +3,  2.95, 3.172, 0.016, 0.15); // tepi bawah pemisah jalur Mall Keluar dan Masuk
+  makeSolidLine(scene, +3,  8.828, 32, 0.016, 0.15); // tepi bawah kanan (setelah Mall Masuk)
 
   // ── PERSIMPANGAN JALAN A & B ─────────────────────────────────
   // Area pertemuan Jalan A (X=-5) dan Jalan B (X=-9) dengan main road
@@ -113,11 +114,11 @@ export function buildRoad(scene) {
   scene.add(roadA);
 
   // Tepi Jalan A
-  makeSolidLineZ(scene, -3,  6, 32, 0.016, 0.12); // tepi kanan
-  makeSolidLineZ(scene, -7,  6, 32, 0.016, 0.12); // tepi kiri
+  makeSolidLineZ(scene, -3,  6.95, 32, 0.016, 0.12); // tepi kanan (bertemu ujung marka Mall Keluar)
+  makeSolidLineZ(scene, -7,  3, 32, 0.016, 0.12); // tepi kiri
 
   // Marka tengah Jalan A (putus-putus Z-axis)
-  for (let z = 6; z < 32; z += 2.5) {
+  for (let z = 4.95; z < 32; z += 2.5) {
     const geo  = new THREE.PlaneGeometry(0.1, 1.4);
     const mesh = new THREE.Mesh(geo, MAT.lineWhite);
     mesh.rotation.x = -Math.PI / 2;
@@ -131,11 +132,11 @@ export function buildRoad(scene) {
   scene.add(roadB);
 
   // Tepi Jalan B
-  makeSolidLineZ(scene, -7,  6, 32, 0.016, 0.12); // tepi kanan (shared dg A)
-  makeSolidLineZ(scene, -11, 6, 32, 0.016, 0.12); // tepi kiri
+  makeSolidLineZ(scene, -7,  3, 32, 0.016, 0.12); // tepi kanan (shared dg A, maju hingga jalan utama)
+  makeSolidLineZ(scene, -11, 3, 32, 0.016, 0.12); // tepi kiri
 
   // Marka Jalan B
-  for (let z = 6; z < 32; z += 2.5) {
+  for (let z = 4; z < 32; z += 2.5) {
     const geo  = new THREE.PlaneGeometry(0.1, 1.4);
     const mesh = new THREE.Mesh(geo, MAT.lineWhite);
     mesh.rotation.x = -Math.PI / 2;
@@ -162,8 +163,8 @@ export function buildRoad(scene) {
   scene.add(mallIn);
 
   // Marka tepi akses masuk (garis putih sepanjang diagonal)
-  addDiagonalLineMarking(scene, 11, 8, -Math.PI / 4, mallInLength, 0.12, true,  2.2, MAT.lineWhite);
-  addDiagonalLineMarking(scene, 11, 8, -Math.PI / 4, mallInLength, 0.12, false, 2.2, MAT.lineWhite);
+  drawLineFromTo(scene, 8.828, 3, 21.828, 16, 0.12, MAT.lineWhite); // Kiri
+  drawLineFromTo(scene, 3.172, 3, 16.172, 16, 0.12, MAT.lineWhite); // Kanan
 
   // ── AKSES MALL UTAMA KELUAR (diagonal, 2 lajur) ───────────────
   // Dari area mall ~(X=14, Z=18) diagonal ke main road ~(X=4, Z=3)
@@ -181,9 +182,9 @@ export function buildRoad(scene) {
   scene.add(mallOut);
 
   // Marka akses keluar: tepi + garis tengah pemisah 2 lajur
-  addDiagonalLineMarking(scene, 6, 11, -Math.PI / 4, mallOutLength, 0.12, true,  3.8, MAT.lineWhite);
-  addDiagonalLineMarking(scene, 6, 11, -Math.PI / 4, mallOutLength, 0.12, false, 3.8, MAT.lineWhite);
-  addDiagonalDashedCenter(scene, 6, 11, -Math.PI / 4, mallOutLength, MAT.lineYellow);
+  drawLineFromTo(scene, 2.95, 3, 15.95, 16, 0.12, MAT.lineWhite); // Kiri (bertemu main road)
+  drawLineFromTo(scene, -3, 6.95, 6.05, 16, 0.12, MAT.lineWhite); // Kanan (bertemu Road A)
+  drawDashedLineFromTo(scene, -2, 3, 11, 16, 0.12, MAT.lineYellow); // Tengah putus-putus
 
   // Persimpangan akses mall dengan jalan utama
   const juncMall = makePlane(10, 6, MAT.asphalt, 6, 0.004, 3);
@@ -266,47 +267,38 @@ export function buildRoad(scene) {
   };
 }
 
-// ── HELPERS MARKA DIAGONAL ────────────────────────────────────
+// ── HELPERS MARKA DIAGONAL & EXACT LINES ────────────────────────
 
-/**
- * Buat garis tepi diagonal pada akses mall.
- * side: true = kiri diagonal, false = kanan diagonal
- */
-function addDiagonalLineMarking(scene, cx, cz, angle, length, lineWidth, left, halfW, mat) {
-  const geo  = new THREE.PlaneGeometry(length, lineWidth);
+function drawLineFromTo(scene, x1, z1, x2, z2, width, mat) {
+  const dx = x2 - x1;
+  const dz = z2 - z1;
+  const length = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(-dz, dx);
+  const geo = new THREE.PlaneGeometry(length, width);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.rotation.x = -Math.PI / 2;
   mesh.rotation.z = angle;
-  const offset = left ? halfW : -halfW;
-  // Offset tegak lurus dari sumbu diagonal
-  mesh.position.set(
-    cx + Math.sin(angle + Math.PI / 2) * offset,
-    0.016,
-    cz - Math.cos(angle + Math.PI / 2) * offset
-  );
+  mesh.position.set((x1 + x2) / 2, 0.016, (z1 + z2) / 2);
   scene.add(mesh);
 }
 
-/**
- * Garis putus-putus tengah diagonal (pemisah lajur akses keluar).
- */
-function addDiagonalDashedCenter(scene, cx, cz, angle, length, mat) {
+function drawDashedLineFromTo(scene, x1, z1, x2, z2, width, mat) {
+  const dx = x2 - x1;
+  const dz = z2 - z1;
+  const length = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(-dz, dx);
   const dashLen = 1.2;
-  const gapLen  = 1.0;
-  const total   = length;
-  let   dist    = -total / 2 + dashLen / 2;
-  while (dist < total / 2) {
-    const geo  = new THREE.PlaneGeometry(dashLen, 0.12);
+  const gapLen = 1.0;
+  for (let d = 0; d < length; d += dashLen + gapLen) {
+    if (d + dashLen > length) break;
+    const cx = x1 + (dx / length) * (d + dashLen / 2);
+    const cz = z1 + (dz / length) * (d + dashLen / 2);
+    const geo = new THREE.PlaneGeometry(dashLen, width);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.rotation.z = angle;
-    mesh.position.set(
-      cx + Math.cos(angle) * dist,
-      0.017,
-      cz + Math.sin(angle) * dist
-    );
+    mesh.position.set(cx, 0.016, cz);
     scene.add(mesh);
-    dist += dashLen + gapLen;
   }
 }
 

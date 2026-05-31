@@ -46,7 +46,7 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 // Koordinat sesuai road.js
 
 function getWaypoints(routeName, laneOffset = 0) {
-  const lo = laneOffset; // lateral offset untuk multi-lane
+  const lo = laneOffset;
   switch (routeName) {
     case 'mainToMain':
       return [
@@ -73,34 +73,55 @@ function getWaypoints(routeName, laneOffset = 0) {
         { x:  -5,  z: 33 },
       ];
 
-    case 'mallToMain':
+    // ── LAJUR 0 (dalam/kiri diagonal) ─────────────────────────
+    case 'mallToMain':          // lane 0 → Jalan Utama
       return [
-        { x: 10.42, z: 17.88 }, 
-        { x: -0.88, z: 6.58 },  
-        { x: -2.5,  z: 3 },     
-        { x: -5,    z: lo },    
-        { x: -35,   z: lo },    
+        { x: 10.42, z: 17.88 },
+        { x: -0.88, z:  6.58 },
+        { x: -2.5,  z:  3    },
+        { x: -5,    z:  lo   },
+        { x: -35,   z:  lo   },
       ];
 
-    case 'mallToRoadA':
+    case 'mallLane0ToRoadA':    // lane 0 → Jalan A (tetap di lajur 0 sampai ujung diagonal)
       return [
-        { x: 12.88, z: 15.42 }, 
-        { x:  1.58, z: 4.12 },  
-        { x: -0.5,  z: 1.5 },   
-        { x: -3,    z: lo },
-        { x: -4,    z: 2 },     
-        { x: -5,    z: 5 },     
-        { x: -5,    z: 33 },    
+        { x: 10.42, z: 17.88 },
+        { x: -0.88, z:  6.58 },
+        { x: -2.5,  z:  3    },
+        { x: -4,    z:  2    },
+        { x: -5,    z:  5    },
+        { x: -5,    z:  33   },
+      ];
+
+    // ── LAJUR 1 (luar/kanan diagonal) ─────────────────────────
+    case 'mallToRoadA':         // lane 1 → Jalan A
+      return [
+        { x: 12.88, z: 15.42 },
+        { x:  1.58, z:  4.12 },
+        { x: -0.5,  z:  1.5  },
+        { x: -3,    z:  lo   },
+        { x: -4,    z:  2    },
+        { x: -5,    z:  5    },
+        { x: -5,    z:  33   },
+      ];
+
+    case 'mallLane1ToMain':     // lane 1 → Jalan Utama (tetap di lajur 1 sampai ujung diagonal)
+      return [
+        { x: 12.88, z: 15.42 },
+        { x:  1.58, z:  4.12 },
+        { x: -0.5,  z:  1.5  },
+        { x: -3,    z:  lo   },
+        { x: -35,   z:  lo   },
       ];
 
     case 'roadBToMain':
       return [
-        { x:  -9,  z: 32 },
-        { x:  -9,  z: 5  },
-        { x:  -9,  z: 2  },
-        { x: -11,  z: 0.5},
-        { x: -14,  z: lo },
-        { x: -35,  z: lo },
+        { x:  -9,  z: 32  },
+        { x:  -9,  z:  5  },
+        { x:  -9,  z:  2  },
+        { x: -11,  z:  0.5},
+        { x: -14,  z:  lo },
+        { x: -35,  z:  lo },
       ];
 
     default:
@@ -109,15 +130,25 @@ function getWaypoints(routeName, laneOffset = 0) {
 }
 
 // ── ROUTE DEFINITIONS ──────────────────────────────────────────
-const ROUTE_KEYS = ['mainToMain', 'mainToMall', 'mainToRoadA', 'mallToMain', 'mallToRoadA', 'roadBToMain'];
+const ROUTE_KEYS = ['mainToMain', 'mainToMall', 'mainToRoadA', 'roadBToMain'];
 
 const ROUTE_COLORS = {
-  mainToMain:  0x4f8cff,
-  mainToMall:  0xff9f44,
-  mainToRoadA: 0x44ff88,
-  mallToMain:  0xff4488,
-  mallToRoadA: 0xff4444,
-  roadBToMain: 0xaa88ff,
+  mainToMain:       0x4f8cff,
+  mainToMall:       0xff9f44,
+  mainToRoadA:      0x44ff88,
+  mallToMain:       0xff4488,
+  mallLane0ToRoadA: 0xff4444,  // sama dengan mallToRoadA
+  mallToRoadA:      0xff4444,
+  mallLane1ToMain:  0xff4488,  // sama dengan mallToMain
+  roadBToMain:      0xaa88ff,
+};
+
+// Peta route lajur mall ke nama base untuk statistik routeCounts
+const MALL_LANE_TO_BASE = {
+  mallToMain:       'mallToMain',
+  mallLane0ToRoadA: 'mallToRoadA',
+  mallToRoadA:      'mallToRoadA',
+  mallLane1ToMain:  'mallToMain',
 };
 
 // ── SIMULATION STATE ───────────────────────────────────────────
@@ -137,8 +168,8 @@ export const state = {
     mainToMain:  12,
     mainToMall:  6,
     mainToRoadA: 2,
-    mallToMain:  8,
-    mallToRoadA: 2,
+    mallToMain:  10,
+    mallToRoadA: 10,
     roadBToMain: 4,
     patience:    10,
     carRatio:    0.6,
@@ -150,8 +181,7 @@ export const state = {
     mainToMain:  0,
     mainToMall:  0,
     mainToRoadA: 0,
-    mallToMain:  0,
-    mallToRoadA: 0,
+    mallExit:    0,   // satu spawner untuk kedua lajur mall (round-robin)
     roadBToMain: 0,
   },
 
@@ -160,8 +190,7 @@ export const state = {
     mainToMain:  0,
     mainToMall:  0,
     mainToRoadA: 0,
-    mallToMain:  0,
-    mallToRoadA: 0,
+    mallExit:    0,   // satu spawner untuk kedua lajur mall (round-robin)
     roadBToMain: 0,
   },
 
@@ -201,12 +230,16 @@ export function resetSimulation(scene, seed) {
   const s = parseInt(seed) || 42;
   rng = mulberry32(s);
 
+
   // Reset accumulators & next arrival times
   ROUTE_KEYS.forEach(key => {
     state.accumulators[key] = 0;
-    // Tebar awal agar tidak semua spawn bersamaan
     state.nextArrival[key]  = exponentialRV(rng, state.params[key] / 60) * rng();
   });
+  // Satu spawner untuk kedua lajur mall — round-robin memastikan kepadatan sama
+  const totalMallSec = (state.params.mallToMain + state.params.mallToRoadA) / 60;
+  state.accumulators.mallExit = 0;
+  state.nextArrival.mallExit  = totalMallSec > 0 ? exponentialRV(rng, totalMallSec / 2) * rng() : Infinity;
 }
 
 // ── MAIN UPDATE LOOP ───────────────────────────────────────────
@@ -248,36 +281,65 @@ export function updateSimulation(delta) {
 
 // ── SPAWN SYSTEM ───────────────────────────────────────────────
 
+
 function spawnVehicles(delta) {
+  // Rute reguler (bukan mall exit)
   ROUTE_KEYS.forEach(route => {
-    const rate = state.params[route]; // kendaraan/menit
+    const rate = state.params[route];
     if (rate <= 0) return;
-
     state.accumulators[route] += delta;
-
     while (state.accumulators[route] >= state.nextArrival[route]) {
       state.accumulators[route] -= state.nextArrival[route];
-      // Hitung inter-arrival berikutnya: Eksponensial(λ=rate/60)
       state.nextArrival[route] = exponentialRV(rng, rate / 60);
-
-      // Spawn kendaraan untuk rute ini
-      if (state.vehicles.length < 200) {  // batas maksimum
-        spawnVehicle(route);
-      }
+      if (state.vehicles.length < 120) spawnVehicle(route);
     }
   });
+
+  // ── PAIRED SPAWN untuk akses keluar mall ──────────────────────────
+  // Setiap event Poisson SELALU spawn DUA kendaraan bersamaan:
+  //   satu ke lajur fisik 0 dan satu ke lajur fisik 1.
+  // Ini menjamin kepadatan kedua lajur di diagonal SELALU identik secara struktural.
+  // Rate tiap event = totalMallRate/2 kendaraan/menit (agar total rate tetap sama)
+  const totalMallRate = state.params.mallToMain + state.params.mallToRoadA;
+  if (totalMallRate > 0) {
+    // Rate per event = setengah total (karena tiap event spawn 2 kendaraan)
+    const pairRateSec = (totalMallRate / 2) / 60;
+    state.accumulators.mallExit += delta;
+    while (state.accumulators.mallExit >= state.nextArrival.mallExit) {
+      state.accumulators.mallExit -= state.nextArrival.mallExit;
+      state.nextArrival.mallExit   = exponentialRV(rng, pairRateSec);
+      if (state.vehicles.length < 118) { // sisakan 2 slot untuk pair
+        // Spawn satu kendaraan di masing-masing lajur fisik secara bersamaan
+        for (const laneIdx of [0, 1]) {
+          const goMain = rng() < state.params.mallToMain / totalMallRate;
+          const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
+          spawnVehicle(dest, laneIdx);
+        }
+      }
+    }
+  }
 }
 
-function spawnVehicle(routeName) {
-  // Bernoulli: tentukan tipe kendaraan
-  const isCar = rng() < state.params.carRatio;
+function spawnVehicle(dest, forceLane = null) {
+  const isMallExit   = dest === 'mallToMain' || dest === 'mallToRoadA';
+  const isMallAccess = isMallExit || dest === 'mainToMall';
+  // Jalan akses keluar & masuk mall hanya dilalui mobil (tidak ada sepeda motor)
+  const isCar      = isMallAccess ? true : rng() < state.params.carRatio;
+  const laneOffset = isMallExit ? 0 : (rng() - 0.5) * 0.8;
 
-  // Lane offset kecil untuk variasi Z (jalan utama 1 lajur, variasi ±0.5)
-  const laneOffset = (rng() - 0.5) * 0.8;
+  // Pilih varian waypoints yang sesuai lajur fisik + tujuan
+  // Setiap lajur mengikuti jalurnya sendiri di diagonal, baru berpisah setelah ujung
+  let waypointKey = dest;
+  if (forceLane !== null && isMallExit) {
+    if (forceLane === 0 && dest === 'mallToRoadA') waypointKey = 'mallLane0ToRoadA';
+    if (forceLane === 1 && dest === 'mallToMain')  waypointKey = 'mallLane1ToMain';
+  }
 
-  const waypoints = getWaypoints(routeName, laneOffset);
+  const waypoints = getWaypoints(waypointKey, laneOffset);
   if (!waypoints || waypoints.length < 2) return;
 
+  // Tujuan (dest) menentukan warna dan statistik
+  const actualRoute = dest;
   // Buat model kendaraan
   const colorFn = isCar ? randomCarColor : randomMotorColor;
   const createFn = isCar ? createCar : createMotorcycle;
@@ -304,9 +366,10 @@ function spawnVehicle(routeName) {
     group:        vehicle.group,
     wheels:       vehicle.wheels,
     type:         vehicle.type,
-    routeName,
+    routeName:    actualRoute,
+    physicalLane: forceLane,   // null = bukan mall exit, 0/1 = lajur fisik
     waypoints,
-    wpIndex:      1,          // waypoint yang sedang dituju
+    wpIndex:      1,
     maxSpeed:     spd,
     currentSpeed: spd,
     patience:     pat,
@@ -317,12 +380,14 @@ function spawnVehicle(routeName) {
     uturnDir:     1,
     congestionTimer: 0,
     baseColor:    vehicle.baseColor,
-    color:        ROUTE_COLORS[routeName],
-    routeColor:   ROUTE_COLORS[routeName],
+    color:        ROUTE_COLORS[actualRoute] ?? 0xffffff,
+    routeColor:   ROUTE_COLORS[actualRoute] ?? 0xffffff,
     spawnTime:    performance.now(),
   });
 
-  state.routeCounts[routeName]++;
+  // Statistik: gabungkan varian lajur ke base route
+  const countKey = MALL_LANE_TO_BASE[actualRoute] ?? actualRoute;
+  if (state.routeCounts[countKey] !== undefined) state.routeCounts[countKey]++;
 }
 
 // ── VEHICLE UPDATE ─────────────────────────────────────────────
@@ -343,10 +408,25 @@ function updateVehicle(v, delta) {
   const dz     = target.z - pos.z;
   const dist   = Math.sqrt(dx * dx + dz * dz);
 
-  // Sampai di waypoint → lanjut ke berikutnya
-  if (dist < 0.3) {
+  const moveDist = v.maxSpeed * delta; // gunakan maxSpeed bukan currentSpeed
+
+  // Sampai di waypoint (atau akan overshoot) → lanjut ke berikutnya
+  if (dist < 0.5 || dist <= moveDist) {
     v.wpIndex++;
     return true;
+  }
+
+  // Safety: paksa despawn jika kendaraan nyasar di luar batas map
+  const px = v.group.position.x;
+  const pz = v.group.position.z;
+  if (Math.abs(px) > 55 || Math.abs(pz) > 60) {
+    v.outOfBoundsTimer = (v.outOfBoundsTimer || 0) + delta;
+    if (v.outOfBoundsTimer > 3) {
+      state.totalWaitTime += v.waitTime;
+      return false; // despawn paksa
+    }
+  } else {
+    v.outOfBoundsTimer = 0;
   }
 
   // Hadapkan ke waypoint
@@ -411,12 +491,21 @@ function applyCollisionAvoidance() {
 
       if (dist > 4.5) continue; // skip jauh
 
+      // Kendaraan di lajur fisik BERBEDA pada diagonal mall tidak saling memblok
+      // (kecuali kendaraan impasien yang menerobos)
+      if (a.physicalLane !== null && a.physicalLane !== undefined &&
+          b.physicalLane !== null && b.physicalLane !== undefined &&
+          a.physicalLane !== b.physicalLane) {
+        if (!a.isImpatient) continue;
+      }
+
       // Cek apakah B ada di depan A
       const dot = dx * dirX + dz * dirZ;
       if (dot <= 0) continue;  // bukan di depan
 
       const lateral = Math.abs(dx * dirZ - dz * dirX);
       if (lateral > 1.2) continue; // beda lajur atau tidak searah
+
 
       // Cek deadlock (keduanya saling menganggap ada di depan)
       const bDirX = Math.cos(b.group.rotation.y);

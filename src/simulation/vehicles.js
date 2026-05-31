@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════
 import * as THREE from 'three';
 
-// Warna pool per tipe kendaraan
-const CAR_COLORS   = [0xf0f0f0, 0xcc2222, 0x888888, 0x111111, 0x2255bb, 0xddaa22, 0x228844];
-const MOTOR_COLORS = [0x111111, 0xfafafa, 0xcc2222, 0xdd7722, 0x334477];
+// Warna pool per tipe kendaraan (dibuat lebih cerah agar kontras dengan jalan)
+const CAR_COLORS   = [0xfafafa, 0xff4444, 0x4488ff, 0xffcc00, 0x44cc66, 0xee77ee, 0x44eeee, 0xffaa44];
+const MOTOR_COLORS = [0xfafafa, 0xff4444, 0x4488ff, 0xffaa00, 0x44ccaa, 0xee55aa];
 
 // Material roda (shared)
 const WHEEL_MAT = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.1 });
@@ -32,19 +32,16 @@ function makeWheel(r = 0.2, h = 0.15, rimR = 0.1) {
   const group = new THREE.Group();
 
   // Ban
-  const tire = new THREE.Mesh(
-    new THREE.CylinderGeometry(r, r, h, 16),
-    WHEEL_MAT
-  );
+  const tireGeo = new THREE.CylinderGeometry(r, r, h, 16);
+  tireGeo.rotateX(Math.PI / 2); // Putar geometry sehingga sumbu (axle) sejajar dengan Z
+  const tire = new THREE.Mesh(tireGeo, WHEEL_MAT);
+  
   // Velg
-  const rim = new THREE.Mesh(
-    new THREE.CylinderGeometry(rimR, rimR, h + 0.01, 8),
-    WHEEL_RIM
-  );
+  const rimGeo = new THREE.CylinderGeometry(rimR, rimR, h + 0.01, 8);
+  rimGeo.rotateX(Math.PI / 2);
+  const rim = new THREE.Mesh(rimGeo, WHEEL_RIM);
 
   group.add(tire, rim);
-  // Roda menghadap samping (rotasi di Z sehingga sumbu putar = X)
-  group.rotation.z = Math.PI / 2;
 
   return group;
 }
@@ -209,11 +206,10 @@ export function randomMotorColor(rng) {
 export function animateWheels(vehicle, delta) {
   const speed = vehicle.currentSpeed;
   if (!vehicle.wheels || speed < 0.01) return;
-  // parent.rotation.z sudah membuat roda menghadap samping
-  // rotasi pada sumbu Y dari parent group = forward rotation
+
+  const omega = speed * delta * 4.5;
   vehicle.wheels.forEach(w => {
-    // Putar ban: tambah rotasi pada sumbu local (setelah rotZ=90°, local Y = world X)
-    w.rotation.y += speed * delta * 4.5;
+    w.rotation.z -= omega; // Putar roda di sumbu Z (axle)
   });
 }
 

@@ -53,27 +53,29 @@ function bindRouteSliders() {
     });
   });
 
-  // Custom binding untuk mallOut (bagi 2 rata untuk 2 lajur)
-  const slMallOut = document.getElementById('sl-mallOut');
-  const valMallOut = document.getElementById('val-mallOut');
-  if (slMallOut && valMallOut) {
-    const initialVal = parseInt(slMallOut.value);
-    valMallOut.textContent = initialVal;
-    state.params.mallToMain = initialVal / 2;
-    state.params.mallToRoadA = initialVal / 2;
-    updateSliderFill(slMallOut);
+  // Binding untuk kedua slider keluar mall (independen, masing-masing slider
+  // mengontrol volume tujuan; kepadatan lajur fisik diatur oleh spawner gabungan)
+  [
+    { id: 'sl-mallToMain',  valId: 'val-mallToMain',  key: 'mallToMain'  },
+    { id: 'sl-mallToRoadA', valId: 'val-mallToRoadA', key: 'mallToRoadA' },
+  ].forEach(({ id, valId, key }) => {
+    const slider = document.getElementById(id);
+    const valEl  = document.getElementById(valId);
+    if (!slider || !valEl) return;
 
-    slMallOut.addEventListener('input', () => {
-      const val = parseInt(slMallOut.value);
-      valMallOut.textContent = val;
-      const half = val / 2;
-      state.params.mallToMain = half;
-      state.params.mallToRoadA = half;
-      state.accumulators.mallToMain = 0;
-      state.accumulators.mallToRoadA = 0;
-      updateSliderFill(slMallOut);
+    valEl.textContent = slider.value;
+    state.params[key] = parseInt(slider.value);
+    updateSliderFill(slider);
+
+    slider.addEventListener('input', () => {
+      const val = parseInt(slider.value);
+      valEl.textContent = val;
+      state.params[key] = val;
+      // Reset spawner tunggal mall exit agar rate baru langsung berlaku
+      state.accumulators.mallExit = 0;
+      updateSliderFill(slider);
     });
-  }
+  });
 }
 
 // ── SLIDER STOKASTIK ──────────────────────────────────────────
@@ -102,6 +104,18 @@ function bindStochasticSliders() {
       vSpd.textContent         = slSpd.value;
       state.params.speedMean   = parseFloat(slSpd.value);
       updateSliderFill(slSpd);
+    });
+  }
+
+  // Kesabaran pengendara
+  const slPat = document.getElementById('sl-patience');
+  const vPat  = document.getElementById('val-patience');
+  if (slPat && vPat) {
+    updateSliderFill(slPat);
+    slPat.addEventListener('input', () => {
+      vPat.textContent          = slPat.value;
+      state.params.patience     = parseFloat(slPat.value);
+      updateSliderFill(slPat);
     });
   }
 }
