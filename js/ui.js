@@ -107,6 +107,18 @@ function bindStochasticSliders() {
       updateSliderFill(slSpd);
     });
   }
+
+  // Kesabaran pengendara
+  const slPat = document.getElementById('sl-patience');
+  const vPat  = document.getElementById('val-patience');
+  if (slPat && vPat) {
+    updateSliderFill(slPat);
+    slPat.addEventListener('input', () => {
+      vPat.textContent          = slPat.value;
+      state.params.patience     = parseFloat(slPat.value);
+      updateSliderFill(slPat);
+    });
+  }
 }
 
 /**
