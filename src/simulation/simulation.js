@@ -320,8 +320,9 @@ function spawnVehicles(delta) {
 }
 
 function spawnVehicle(dest, forceLane = null) {
-  const isCar      = rng() < state.params.carRatio;
   const isMallExit = dest === 'mallToMain' || dest === 'mallToRoadA';
+  // Jalan akses keluar mall hanya dilalui mobil (tidak ada sepeda motor)
+  const isCar      = isMallExit ? true : rng() < state.params.carRatio;
   const laneOffset = isMallExit ? 0 : (rng() - 0.5) * 0.8;
 
   // Pilih varian waypoints yang sesuai lajur fisik + tujuan
