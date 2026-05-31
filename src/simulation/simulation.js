@@ -229,7 +229,7 @@ export function resetSimulation(scene, seed) {
   // Reset PRNG
   const s = parseInt(seed) || 42;
   rng = mulberry32(s);
-  mallExitLane = 0;
+
 
   // Reset accumulators & next arrival times
   ROUTE_KEYS.forEach(key => {
@@ -239,7 +239,7 @@ export function resetSimulation(scene, seed) {
   // Satu spawner untuk kedua lajur mall — round-robin memastikan kepadatan sama
   const totalMallSec = (state.params.mallToMain + state.params.mallToRoadA) / 60;
   state.accumulators.mallExit = 0;
-  state.nextArrival.mallExit  = totalMallSec > 0 ? exponentialRV(rng, totalMallSec) * rng() : Infinity;
+  state.nextArrival.mallExit  = totalMallSec > 0 ? exponentialRV(rng, totalMallSec / 2) * rng() : Infinity;
 }
 
 // ── MAIN UPDATE LOOP ───────────────────────────────────────────
@@ -281,8 +281,6 @@ export function updateSimulation(delta) {
 
 // ── SPAWN SYSTEM ───────────────────────────────────────────────
 
-// Round-robin counter untuk lajur fisik keluar mall
-let mallExitLane = 0;
 
 function spawnVehicles(delta) {
   // Rute reguler (bukan mall exit)
@@ -293,36 +291,40 @@ function spawnVehicles(delta) {
     while (state.accumulators[route] >= state.nextArrival[route]) {
       state.accumulators[route] -= state.nextArrival[route];
       state.nextArrival[route] = exponentialRV(rng, rate / 60);
-      if (state.vehicles.length < 200) spawnVehicle(route);
+      if (state.vehicles.length < 120) spawnVehicle(route);
     }
   });
 
-  // Satu spawner untuk kedua lajur mall — round-robin: tiap spawn bergantian lajur 0 dan 1
-  // sehingga jumlah kendaraan di kedua lajur SELALU simetris (selisih max 1)
+  // ── PAIRED SPAWN untuk akses keluar mall ──────────────────────────
+  // Setiap event Poisson SELALU spawn DUA kendaraan bersamaan:
+  //   satu ke lajur fisik 0 dan satu ke lajur fisik 1.
+  // Ini menjamin kepadatan kedua lajur di diagonal SELALU identik secara struktural.
+  // Rate tiap event = totalMallRate/2 kendaraan/menit (agar total rate tetap sama)
   const totalMallRate = state.params.mallToMain + state.params.mallToRoadA;
   if (totalMallRate > 0) {
-    const totalSec = totalMallRate / 60;
+    // Rate per event = setengah total (karena tiap event spawn 2 kendaraan)
+    const pairRateSec = (totalMallRate / 2) / 60;
     state.accumulators.mallExit += delta;
     while (state.accumulators.mallExit >= state.nextArrival.mallExit) {
       state.accumulators.mallExit -= state.nextArrival.mallExit;
-      state.nextArrival.mallExit   = exponentialRV(rng, totalSec);
-      if (state.vehicles.length < 200) {
-        // Ambil lajur saat ini lalu segera toggle ke lajur berikutnya (round-robin)
-        const laneIdx = mallExitLane;
-        mallExitLane  = 1 - mallExitLane;
-        // Tentukan tujuan berdasarkan rasio slider
-        const goMain = rng() < state.params.mallToMain / totalMallRate;
-        const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
-        spawnVehicle(dest, laneIdx);
+      state.nextArrival.mallExit   = exponentialRV(rng, pairRateSec);
+      if (state.vehicles.length < 118) { // sisakan 2 slot untuk pair
+        // Spawn satu kendaraan di masing-masing lajur fisik secara bersamaan
+        for (const laneIdx of [0, 1]) {
+          const goMain = rng() < state.params.mallToMain / totalMallRate;
+          const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
+          spawnVehicle(dest, laneIdx);
+        }
       }
     }
   }
 }
 
 function spawnVehicle(dest, forceLane = null) {
-  const isMallExit = dest === 'mallToMain' || dest === 'mallToRoadA';
-  // Jalan akses keluar mall hanya dilalui mobil (tidak ada sepeda motor)
-  const isCar      = isMallExit ? true : rng() < state.params.carRatio;
+  const isMallExit   = dest === 'mallToMain' || dest === 'mallToRoadA';
+  const isMallAccess = isMallExit || dest === 'mainToMall';
+  // Jalan akses keluar & masuk mall hanya dilalui mobil (tidak ada sepeda motor)
+  const isCar      = isMallAccess ? true : rng() < state.params.carRatio;
   const laneOffset = isMallExit ? 0 : (rng() - 0.5) * 0.8;
 
   // Pilih varian waypoints yang sesuai lajur fisik + tujuan
@@ -406,10 +408,25 @@ function updateVehicle(v, delta) {
   const dz     = target.z - pos.z;
   const dist   = Math.sqrt(dx * dx + dz * dz);
 
-  // Sampai di waypoint → lanjut ke berikutnya
-  if (dist < 0.3) {
+  const moveDist = v.maxSpeed * delta; // gunakan maxSpeed bukan currentSpeed
+
+  // Sampai di waypoint (atau akan overshoot) → lanjut ke berikutnya
+  if (dist < 0.5 || dist <= moveDist) {
     v.wpIndex++;
     return true;
+  }
+
+  // Safety: paksa despawn jika kendaraan nyasar di luar batas map
+  const px = v.group.position.x;
+  const pz = v.group.position.z;
+  if (Math.abs(px) > 55 || Math.abs(pz) > 60) {
+    v.outOfBoundsTimer = (v.outOfBoundsTimer || 0) + delta;
+    if (v.outOfBoundsTimer > 3) {
+      state.totalWaitTime += v.waitTime;
+      return false; // despawn paksa
+    }
+  } else {
+    v.outOfBoundsTimer = 0;
   }
 
   // Hadapkan ke waypoint
@@ -474,10 +491,13 @@ function applyCollisionAvoidance() {
 
       if (dist > 4.5) continue; // skip jauh
 
-      // Kendaraan di LAJUR FISIK BERBEDA pada jalan diagonal mall tidak saling mempengaruhi
+      // Kendaraan di lajur fisik BERBEDA pada diagonal mall tidak saling memblok
+      // (kecuali kendaraan impasien yang menerobos)
       if (a.physicalLane !== null && a.physicalLane !== undefined &&
           b.physicalLane !== null && b.physicalLane !== undefined &&
-          a.physicalLane !== b.physicalLane) continue;
+          a.physicalLane !== b.physicalLane) {
+        if (!a.isImpatient) continue;
+      }
 
       // Cek apakah B ada di depan A
       const dot = dx * dirX + dz * dirZ;
