@@ -359,6 +359,35 @@ function isMallToMainMergeConflict(a, b) {
   return az <= 4.2 || bz <= 4.2;
 }
 
+function isMainRoadMotorcycleQueueZone(v) {
+  if (v.type !== 'motorcycle') return false;
+  const p = v.group.position;
+
+  if (v.routeName === 'mainToMain') {
+    return p.x > 2.5 && p.x < 9.5 && Math.abs(p.z) < 2.4;
+  }
+
+  if (v.routeName === 'mainToRoadA') {
+    return p.x > -6.5 && p.x < 0.5 && Math.abs(p.z) < 2.4;
+  }
+
+  return false;
+}
+
+function canMainRoadMotorcycleFilterPast(a, b) {
+  if (a.type !== 'motorcycle' || b.type !== 'car') return false;
+  if (a.routeName !== 'mainToMain' && a.routeName !== 'mainToRoadA') return false;
+  if (!isMainRoadQueueVehicle(b)) return false;
+
+  return !isMainRoadMotorcycleQueueZone(a);
+}
+
+function isMainRoadQueueVehicle(v) {
+  return v.routeName === 'mainToMain' ||
+         v.routeName === 'mainToRoadA' ||
+         v.routeName === 'mainToMall';
+}
+
 function spawnVehicle(dest, forceLane = null) {
   const isMallExit   = dest === 'mallToMain' || dest === 'mallToRoadA';
   const isMallAccess = isMallExit || dest === 'mainToMall';
@@ -532,7 +561,11 @@ function applyCollisionAvoidance() {
       const dz   = bz - az;
       const dist = Math.sqrt(dx * dx + dz * dz);
 
-      if (dist > 4.5) continue; // skip jauh
+      const queueNearConflict = isMainRoadMotorcycleQueueZone(a) && isMainRoadQueueVehicle(b);
+      const followDist = queueNearConflict ? 6.0 : 4.5;
+      if (dist > followDist) continue; // skip jauh
+
+      if (canMainRoadMotorcycleFilterPast(a, b)) continue;
 
       // Kendaraan di lajur fisik BERBEDA pada diagonal mall tidak saling memblok
       // agar dua lajur tidak saling mengunci saat antrean padat.
@@ -547,7 +580,8 @@ function applyCollisionAvoidance() {
       if (dot <= 0) continue;  // bukan di depan
 
       const lateral = Math.abs(dx * dirZ - dz * dirX);
-      if (lateral > 1.2) continue; // beda lajur atau tidak searah
+      const lateralLimit = queueNearConflict ? 3.0 : 1.2;
+      if (lateral > lateralLimit) continue; // beda lajur atau tidak searah
 
 
       // Cek deadlock (keduanya saling menganggap ada di depan)
