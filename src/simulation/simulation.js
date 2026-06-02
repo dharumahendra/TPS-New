@@ -111,6 +111,7 @@ function getWaypoints(routeName, laneOffset = 0) {
         { x:  1.58, z:  4.12 },
         { x: -0.5,  z:  1.5  },
         { x: -3,    z:  lo   },
+        { x: -5,    z:  lo   },
         { x: -35,   z:  lo   },
       ];
 
@@ -131,6 +132,8 @@ function getWaypoints(routeName, laneOffset = 0) {
 
 // ── ROUTE DEFINITIONS ──────────────────────────────────────────
 const ROUTE_KEYS = ['mainToMain', 'mainToMall', 'mainToRoadA', 'roadBToMain'];
+const MAX_ACTIVE_VEHICLES = 160;
+const MALL_EXIT_RESERVED_SLOTS = 40;
 
 const ROUTE_COLORS = {
   mainToMain:       0x4f8cff,
@@ -244,6 +247,21 @@ export function resetSimulation(scene, seed) {
 
 // ── MAIN UPDATE LOOP ───────────────────────────────────────────
 
+export function rescheduleArrival(key) {
+  state.accumulators[key] = 0;
+
+  if (key === 'mallExit') {
+    const totalMallRate = state.params.mallToMain + state.params.mallToRoadA;
+    state.nextArrival.mallExit = totalMallRate > 0
+      ? exponentialRV(rng, (totalMallRate / 2) / 60)
+      : Infinity;
+    return;
+  }
+
+  const rate = state.params[key];
+  state.nextArrival[key] = rate > 0 ? exponentialRV(rng, rate / 60) : Infinity;
+}
+
 /**
  * Dipanggil setiap frame dari main.js
  * @param {number} delta - deltaTime (detik, sudah × speedMult)
@@ -291,7 +309,7 @@ function spawnVehicles(delta) {
     while (state.accumulators[route] >= state.nextArrival[route]) {
       state.accumulators[route] -= state.nextArrival[route];
       state.nextArrival[route] = exponentialRV(rng, rate / 60);
-      if (state.vehicles.length < 120) spawnVehicle(route);
+      if (state.vehicles.length < getRegularSpawnLimit()) spawnVehicle(route);
     }
   });
 
@@ -308,16 +326,35 @@ function spawnVehicles(delta) {
     while (state.accumulators.mallExit >= state.nextArrival.mallExit) {
       state.accumulators.mallExit -= state.nextArrival.mallExit;
       state.nextArrival.mallExit   = exponentialRV(rng, pairRateSec);
-      if (state.vehicles.length < 118) { // sisakan 2 slot untuk pair
+      if (state.vehicles.length <= MAX_ACTIVE_VEHICLES - 2) { // sisakan 2 slot untuk pair
+        // Satu event memakai tujuan yang sama untuk dua lajur fisik.
+        // Ini membuat antrean keluar mall merata saat satu tujuan volumenya tinggi.
+        const goMain = rng() < state.params.mallToMain / totalMallRate;
+        const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
+
         // Spawn satu kendaraan di masing-masing lajur fisik secara bersamaan
         for (const laneIdx of [0, 1]) {
-          const goMain = rng() < state.params.mallToMain / totalMallRate;
-          const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
           spawnVehicle(dest, laneIdx);
         }
       }
     }
   }
+}
+
+function getRegularSpawnLimit() {
+  const mallExitActive = state.params.mallToMain + state.params.mallToRoadA > 0;
+  return mallExitActive
+    ? MAX_ACTIVE_VEHICLES - MALL_EXIT_RESERVED_SLOTS
+    : MAX_ACTIVE_VEHICLES;
+}
+
+function isMallToMainMergeConflict(a, b) {
+  if (a.routeName !== 'mallToMain' || b.routeName !== 'mallToMain') return false;
+
+  const az = a.group.position.z;
+  const bz = b.group.position.z;
+
+  return az <= 4.2 || bz <= 4.2;
 }
 
 function spawnVehicle(dest, forceLane = null) {
@@ -492,11 +529,11 @@ function applyCollisionAvoidance() {
       if (dist > 4.5) continue; // skip jauh
 
       // Kendaraan di lajur fisik BERBEDA pada diagonal mall tidak saling memblok
-      // (kecuali kendaraan impasien yang menerobos)
+      // agar dua lajur tidak saling mengunci saat antrean padat.
       if (a.physicalLane !== null && a.physicalLane !== undefined &&
           b.physicalLane !== null && b.physicalLane !== undefined &&
           a.physicalLane !== b.physicalLane) {
-        if (!a.isImpatient) continue;
+        if (!isMallToMainMergeConflict(a, b)) continue;
       }
 
       // Cek apakah B ada di depan A
