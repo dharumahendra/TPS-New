@@ -134,6 +134,7 @@ function getWaypoints(routeName, laneOffset = 0) {
 const ROUTE_KEYS = ['mainToMain', 'mainToMall', 'mainToRoadA', 'roadBToMain'];
 const MAX_ACTIVE_VEHICLES = 160;
 const MALL_EXIT_RESERVED_SLOTS = 40;
+const MAIN_TO_MALL_LANE_Z = 2.15;
 
 const ROUTE_COLORS = {
   mainToMain:       0x4f8cff,
@@ -334,6 +335,7 @@ function spawnVehicles(delta) {
 
         // Spawn satu kendaraan di masing-masing lajur fisik secara bersamaan
         for (const laneIdx of [0, 1]) {
+          if (dest === 'mallToRoadA' && laneIdx === 1) continue;
           spawnVehicle(dest, laneIdx);
         }
       }
@@ -362,7 +364,11 @@ function spawnVehicle(dest, forceLane = null) {
   const isMallAccess = isMallExit || dest === 'mainToMall';
   // Jalan akses keluar & masuk mall hanya dilalui mobil (tidak ada sepeda motor)
   const isCar      = isMallAccess ? true : rng() < state.params.carRatio;
-  const laneOffset = isMallExit ? 0 : (rng() - 0.5) * 0.8;
+  const laneOffset = isMallExit
+    ? 0
+    : dest === 'mainToMall'
+      ? MAIN_TO_MALL_LANE_Z
+      : (rng() - 0.5) * 0.8;
 
   // Pilih varian waypoints yang sesuai lajur fisik + tujuan
   // Setiap lajur mengikuti jalurnya sendiri di diagonal, baru berpisah setelah ujung
