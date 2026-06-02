@@ -111,6 +111,7 @@ function getWaypoints(routeName, laneOffset = 0) {
         { x:  1.58, z:  4.12 },
         { x: -0.5,  z:  1.5  },
         { x: -3,    z:  lo   },
+        { x: -5,    z:  lo   },
         { x: -35,   z:  lo   },
       ];
 
@@ -131,6 +132,9 @@ function getWaypoints(routeName, laneOffset = 0) {
 
 // ── ROUTE DEFINITIONS ──────────────────────────────────────────
 const ROUTE_KEYS = ['mainToMain', 'mainToMall', 'mainToRoadA', 'roadBToMain'];
+const MAX_ACTIVE_VEHICLES = 160;
+const MALL_EXIT_RESERVED_SLOTS = 40;
+const MAIN_TO_MALL_LANE_Z = 2.15;
 
 const ROUTE_COLORS = {
   mainToMain:       0x4f8cff,
@@ -244,6 +248,21 @@ export function resetSimulation(scene, seed) {
 
 // ── MAIN UPDATE LOOP ───────────────────────────────────────────
 
+export function rescheduleArrival(key) {
+  state.accumulators[key] = 0;
+
+  if (key === 'mallExit') {
+    const totalMallRate = state.params.mallToMain + state.params.mallToRoadA;
+    state.nextArrival.mallExit = totalMallRate > 0
+      ? exponentialRV(rng, (totalMallRate / 2) / 60)
+      : Infinity;
+    return;
+  }
+
+  const rate = state.params[key];
+  state.nextArrival[key] = rate > 0 ? exponentialRV(rng, rate / 60) : Infinity;
+}
+
 /**
  * Dipanggil setiap frame dari main.js
  * @param {number} delta - deltaTime (detik, sudah × speedMult)
@@ -291,7 +310,7 @@ function spawnVehicles(delta) {
     while (state.accumulators[route] >= state.nextArrival[route]) {
       state.accumulators[route] -= state.nextArrival[route];
       state.nextArrival[route] = exponentialRV(rng, rate / 60);
-      if (state.vehicles.length < 120) spawnVehicle(route);
+      if (state.vehicles.length < getRegularSpawnLimit()) spawnVehicle(route);
     }
   });
 
@@ -308,11 +327,15 @@ function spawnVehicles(delta) {
     while (state.accumulators.mallExit >= state.nextArrival.mallExit) {
       state.accumulators.mallExit -= state.nextArrival.mallExit;
       state.nextArrival.mallExit   = exponentialRV(rng, pairRateSec);
-      if (state.vehicles.length < 118) { // sisakan 2 slot untuk pair
+      if (state.vehicles.length <= MAX_ACTIVE_VEHICLES - 2) { // sisakan 2 slot untuk pair
+        // Satu event memakai tujuan yang sama untuk dua lajur fisik.
+        // Ini membuat antrean keluar mall merata saat satu tujuan volumenya tinggi.
+        const goMain = rng() < state.params.mallToMain / totalMallRate;
+        const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
+
         // Spawn satu kendaraan di masing-masing lajur fisik secara bersamaan
         for (const laneIdx of [0, 1]) {
-          const goMain = rng() < state.params.mallToMain / totalMallRate;
-          const dest   = goMain ? 'mallToMain' : 'mallToRoadA';
+          if (dest === 'mallToRoadA' && laneIdx === 1) continue;
           spawnVehicle(dest, laneIdx);
         }
       }
@@ -320,12 +343,61 @@ function spawnVehicles(delta) {
   }
 }
 
+function getRegularSpawnLimit() {
+  const mallExitActive = state.params.mallToMain + state.params.mallToRoadA > 0;
+  return mallExitActive
+    ? MAX_ACTIVE_VEHICLES - MALL_EXIT_RESERVED_SLOTS
+    : MAX_ACTIVE_VEHICLES;
+}
+
+function isMallToMainMergeConflict(a, b) {
+  if (a.routeName !== 'mallToMain' || b.routeName !== 'mallToMain') return false;
+
+  const az = a.group.position.z;
+  const bz = b.group.position.z;
+
+  return az <= 4.2 || bz <= 4.2;
+}
+
+function isMainRoadMotorcycleQueueZone(v) {
+  if (v.type !== 'motorcycle') return false;
+  const p = v.group.position;
+
+  if (v.routeName === 'mainToMain') {
+    return p.x > 2.5 && p.x < 9.5 && Math.abs(p.z) < 2.4;
+  }
+
+  if (v.routeName === 'mainToRoadA') {
+    return p.x > -6.5 && p.x < 0.5 && Math.abs(p.z) < 2.4;
+  }
+
+  return false;
+}
+
+function canMainRoadMotorcycleFilterPast(a, b) {
+  if (a.type !== 'motorcycle' || b.type !== 'car') return false;
+  if (a.routeName !== 'mainToMain' && a.routeName !== 'mainToRoadA') return false;
+  if (!isMainRoadQueueVehicle(b)) return false;
+
+  return !isMainRoadMotorcycleQueueZone(a);
+}
+
+function isMainRoadQueueVehicle(v) {
+  return v.routeName === 'mainToMain' ||
+         v.routeName === 'mainToRoadA' ||
+         v.routeName === 'mainToMall';
+}
+
 function spawnVehicle(dest, forceLane = null) {
   const isMallExit   = dest === 'mallToMain' || dest === 'mallToRoadA';
   const isMallAccess = isMallExit || dest === 'mainToMall';
   // Jalan akses keluar & masuk mall hanya dilalui mobil (tidak ada sepeda motor)
   const isCar      = isMallAccess ? true : rng() < state.params.carRatio;
-  const laneOffset = isMallExit ? 0 : (rng() - 0.5) * 0.8;
+  const laneOffset = isMallExit
+    ? 0
+    : dest === 'mainToMall'
+      ? MAIN_TO_MALL_LANE_Z
+      : (rng() - 0.5) * 0.8;
 
   // Pilih varian waypoints yang sesuai lajur fisik + tujuan
   // Setiap lajur mengikuti jalurnya sendiri di diagonal, baru berpisah setelah ujung
@@ -489,14 +561,18 @@ function applyCollisionAvoidance() {
       const dz   = bz - az;
       const dist = Math.sqrt(dx * dx + dz * dz);
 
-      if (dist > 4.5) continue; // skip jauh
+      const queueNearConflict = isMainRoadMotorcycleQueueZone(a) && isMainRoadQueueVehicle(b);
+      const followDist = queueNearConflict ? 6.0 : 4.5;
+      if (dist > followDist) continue; // skip jauh
+
+      if (canMainRoadMotorcycleFilterPast(a, b)) continue;
 
       // Kendaraan di lajur fisik BERBEDA pada diagonal mall tidak saling memblok
-      // (kecuali kendaraan impasien yang menerobos)
+      // agar dua lajur tidak saling mengunci saat antrean padat.
       if (a.physicalLane !== null && a.physicalLane !== undefined &&
           b.physicalLane !== null && b.physicalLane !== undefined &&
           a.physicalLane !== b.physicalLane) {
-        if (!a.isImpatient) continue;
+        if (!isMallToMainMergeConflict(a, b)) continue;
       }
 
       // Cek apakah B ada di depan A
@@ -504,7 +580,8 @@ function applyCollisionAvoidance() {
       if (dot <= 0) continue;  // bukan di depan
 
       const lateral = Math.abs(dx * dirZ - dz * dirX);
-      if (lateral > 1.2) continue; // beda lajur atau tidak searah
+      const lateralLimit = queueNearConflict ? 3.0 : 1.2;
+      if (lateral > lateralLimit) continue; // beda lajur atau tidak searah
 
 
       // Cek deadlock (keduanya saling menganggap ada di depan)

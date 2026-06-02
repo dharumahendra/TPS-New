@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // js/ui.js — UI Bindings: Sliders, Stats, Seed, Controls
 // ═══════════════════════════════════════════════════════════════
-import { state, getStats, resetSimulation } from './simulation.js';
+import { state, getStats, resetSimulation, rescheduleArrival } from './simulation.js';
 
 let statsInterval = null;
 
@@ -47,8 +47,8 @@ function bindRouteSliders() {
       const val = parseInt(slider.value);
       valEl.textContent       = val;
       state.params[key]       = val;
-      // Reset accumulator so new rate takes effect immediately
-      state.accumulators[key] = 0;
+      // Reset schedule so new rate takes effect immediately
+      rescheduleArrival(key);
       updateSliderFill(slider);
     });
   });
@@ -72,7 +72,7 @@ function bindRouteSliders() {
       valEl.textContent = val;
       state.params[key] = val;
       // Reset spawner tunggal mall exit agar rate baru langsung berlaku
-      state.accumulators.mallExit = 0;
+      rescheduleArrival('mallExit');
       updateSliderFill(slider);
     });
   });

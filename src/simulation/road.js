@@ -101,6 +101,8 @@ export function buildRoad(scene) {
   makeSolidLine(scene, +3,  -34, -11, 0.016, 0.15); // tepi bawah kiri (sebelum Jalan B)
   makeSolidLine(scene, +3,  2.95, 3.172, 0.016, 0.15); // tepi bawah pemisah jalur Mall Keluar dan Masuk
   makeSolidLine(scene, +3,  8.828, 32, 0.016, 0.15); // tepi bawah kanan (setelah Mall Masuk)
+  makeSolidLine(scene, +1.5, 8.828, 32, 0.016, 0.1, MAT.lineYellow); // batas lajur khusus masuk mall
+  makeSolidLineZ(scene, 8.828, 1.5, 3, 0.016, 0.1, MAT.lineYellow); // akhir lajur khusus di persimpangan akses mall
 
   // ── PERSIMPANGAN JALAN A & B ─────────────────────────────────
   // Area pertemuan Jalan A (X=-5) dan Jalan B (X=-9) dengan main road
