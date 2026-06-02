@@ -44,18 +44,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* Overlay: Legend */}
-        <div className="canvas-overlay bottom-left">
-          <div className="legend">
-            <div className="legend-title">Legenda Rute</div>
-            <div className="legend-item"><span className="leg-color" style={{background:'#4f8cff'}}></span>Jalan Utama → Utama</div>
-            <div className="legend-item"><span className="leg-color" style={{background:'#ff9f44'}}></span>Jalan Utama → Mall</div>
-            <div className="legend-item"><span className="leg-color" style={{background:'#44ff88'}}></span>Jalan Utama → Jalan A</div>
-            <div className="legend-item"><span className="leg-color" style={{background:'#ff4488'}}></span>Keluar Mall → Utama</div>
-            <div className="legend-item"><span className="leg-color" style={{background:'#ff4444'}}></span>Keluar Mall → Jalan A</div>
-            <div className="legend-item"><span className="leg-color" style={{background:'#aa88ff'}}></span>Jalan B → Utama</div>
-          </div>
-        </div>
+
       </main>
 
       {/* ═══════════════════════════════════════════════════════
@@ -111,7 +100,7 @@ export default function App() {
             <div className="slider-minmax"><span>0</span><span>60</span></div>
           </div>
 
-          <div className="slider-group" data-route="mainToMall" style={{'--route-color':'#ff9f44'}}>
+          <div className="slider-group" data-route="mainToMall" style={{'--route-color':'#4f8cff'}}>
             <div className="slider-header">
               <label className="slider-label">Jalan Utama → Masuk Mall</label>
               <span className="slider-value" id="val-mainToMall">6</span>
@@ -121,7 +110,7 @@ export default function App() {
             <div className="slider-minmax"><span>0</span><span>60</span></div>
           </div>
 
-          <div className="slider-group" data-route="mainToRoadA" style={{'--route-color':'#44ff88'}}>
+          <div className="slider-group" data-route="mainToRoadA" style={{'--route-color':'#4f8cff'}}>
             <div className="slider-header">
               <label className="slider-label">Jalan Utama → Jalan A</label>
               <span className="slider-value" id="val-mainToRoadA">2</span>
@@ -131,7 +120,7 @@ export default function App() {
             <div className="slider-minmax"><span>0</span><span>60</span></div>
           </div>
 
-          <div className="slider-group" data-route="mallToMain" style={{'--route-color':'#ff4488'}}>
+          <div className="slider-group" data-route="mallToMain" style={{'--route-color':'#4f8cff'}}>
             <div className="slider-header">
               <label className="slider-label">Keluar Mall → Jalan Utama</label>
               <span className="slider-value" id="val-mallToMain">10</span>
@@ -141,7 +130,7 @@ export default function App() {
             <div className="slider-minmax"><span>0</span><span>60</span></div>
           </div>
 
-          <div className="slider-group" data-route="mallToRoadA" style={{'--route-color':'#ff4444'}}>
+          <div className="slider-group" data-route="mallToRoadA" style={{'--route-color':'#4f8cff'}}>
             <div className="slider-header">
               <label className="slider-label">Keluar Mall → Jalan A</label>
               <span className="slider-value" id="val-mallToRoadA">10</span>
@@ -151,7 +140,7 @@ export default function App() {
             <div className="slider-minmax"><span>0</span><span>60</span></div>
           </div>
 
-          <div className="slider-group" data-route="roadBToMain" style={{'--route-color':'#aa88ff'}}>
+          <div className="slider-group" data-route="roadBToMain" style={{'--route-color':'#4f8cff'}}>
             <div className="slider-header">
               <label className="slider-label">Jalan B → Jalan Utama</label>
               <span className="slider-value" id="val-roadBToMain">4</span>
@@ -263,27 +252,27 @@ export default function App() {
               <span className="rs-count" id="rc-mainToMain">0</span>
             </div>
             <div className="route-stat" id="rs-mainToMall">
-              <span className="rs-dot" style={{background:'#ff9f44'}}></span>
+              <span className="rs-dot" style={{background:'#4f8cff'}}></span>
               <span className="rs-name">Utama→Mall</span>
               <span className="rs-count" id="rc-mainToMall">0</span>
             </div>
             <div className="route-stat" id="rs-mainToRoadA">
-              <span className="rs-dot" style={{background:'#44ff88'}}></span>
+              <span className="rs-dot" style={{background:'#4f8cff'}}></span>
               <span className="rs-name">Utama→Jln A</span>
               <span className="rs-count" id="rc-mainToRoadA">0</span>
             </div>
             <div className="route-stat" id="rs-mallToMain">
-              <span className="rs-dot" style={{background:'#ff4488'}}></span>
+              <span className="rs-dot" style={{background:'#4f8cff'}}></span>
               <span className="rs-name">Mall→Utama</span>
               <span className="rs-count" id="rc-mallToMain">0</span>
             </div>
             <div className="route-stat" id="rs-mallToRoadA">
-              <span className="rs-dot" style={{background:'#ff4444'}}></span>
+              <span className="rs-dot" style={{background:'#4f8cff'}}></span>
               <span className="rs-name">Mall→Jln A</span>
               <span className="rs-count" id="rc-mallToRoadA">0</span>
             </div>
             <div className="route-stat" id="rs-roadBToMain">
-              <span className="rs-dot" style={{background:'#aa88ff'}}></span>
+              <span className="rs-dot" style={{background:'#4f8cff'}}></span>
               <span className="rs-name">Jln B→Utama</span>
               <span className="rs-count" id="rc-roadBToMain">0</span>
             </div>
